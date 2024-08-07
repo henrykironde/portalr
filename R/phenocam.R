@@ -15,18 +15,16 @@ phenocam <- function(level = "daily", path = get_default_data_path())
 
   got <- tryCatch(GET(url),
                   error = function(e) NULL)
-  if (is.null(got)) {
-      return(NULL)
-  }
+  return_if_null(x = got)
+
 
   got <- tryCatch(stop_for_status(got),
                   error = function(e) NULL)
-  if (is.null(got)) {
-      return(NULL)
-  }
+  return_if_null(x = got)
+
 
   pheno <- read.csv(url,
-                    skip = 22, header = TRUE, na.strings = c(""), stringsAsFactors = FALSE,
+                    skip = 22, header = TRUE, na.strings = c("", "NA"), stringsAsFactors = FALSE,
                     colClasses = c("Date", rep("integer", 3), "character",
                                    rep("numeric", 22), rep("character", 5))) %>%
     dplyr::arrange(.data$date)

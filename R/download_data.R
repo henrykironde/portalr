@@ -5,67 +5,64 @@
 #'
 #' @description Downloads specified version of the Portal data.
 #'
-#' @param path Folder into which data will be downloaded
+#' @param path \code{character} Folder into which data will be downloaded.
 #'
-#' @param version Version of the data to download (default = "latest").
-#'                 If \code{NULL}, returns.
+#' @param version \code{character} Version of the data to download (default = "latest"). If \code{NULL}, returns.
 #'
-#' @param quiet logical, whether to download data silently.
+#' @param quiet \code{logical} whether to download data silently.
 #'
-#' @param verbose logical, whether to provide details of downloading.
+#' @param verbose \code{logical} whether to provide details of downloading.
 #'
-#' @param pause Positive \code{integer} or integer \code{numeric} seconds for pausing during steps around unzipping that require time delayment. 
+#' @param pause Positive \code{integer} or integer \code{numeric} seconds for pausing during steps around unzipping that require time delayment.
 #'
 #' @param timeout Positive \code{integer} or integer \code{numeric} seconds for timeout on downloads. Temporarily overrides the \code{"timeout"} option in \code{\link[base]{options}}.
 #'
-#' @param from_zenodo \code{logical}; if `TRUE`, get info from Zenodo, otherwise GitHub
+#' @param source \code{character} indicator of the source for the download. Either \code{"github"} (default) or \code{"zenodo"}.
 #'
-#' @param overwrite \code{logical} indicator of whether or not existing files or folders (such as the archive) should be over-written if an up-to-date copy exists (most users should leave as \code{FALSE}).
+#' @param force \code{logical} indicator of whether or not existing files or folders (such as the archive) should be over-written if an up-to-date copy exists (most users should leave as \code{FALSE}).
 #'
 #' @return NULL invisibly.
 #'
-#'
 #' @export
 #'
-download_observations <- function(path        = get_default_data_path(),
-                                  version     = "latest", 
-                                  from_zenodo = FALSE,
-                                  quiet       = FALSE,
-                                  verbose     = FALSE,
-                                  pause       = 30,
-                                  timeout     = getOption("timeout"),
-                                  overwrite   = FALSE) {
+download_observations <- function (path    = get_default_data_path(),
+                                   version = "latest",
+                                   source  = "github",
+                                   quiet   = FALSE,
+                                   verbose = FALSE,
+                                   pause   = 30,
+                                   timeout = getOption("timeout"),
+                                   force   = FALSE) {
 
-  if (is.null(version)) {
-
-    return(invisible())
-
-  }
+  return_if_null(x = version)
+  latest_requested <- identical(version, "latest")
 
   timeout_backup <- getOption("timeout")
   on.exit(options(timeout = timeout_backup))
-  options(timeout = timeout) 
+  options(timeout = timeout)
 
-  if (from_zenodo) {
+  if (source == "zenodo") {
 
-    base_url <- "https://zenodo.org/api/records/" 
+    base_url <- "https://zenodo.org/api/records/"
 
     got <- GET(base_url, query = list(q = "conceptrecid:1215988",
-                                      size = 9999, 
+                                      size = 9999,
                                       all_versions = "true"))
 
     stop_for_status(got, task = paste0("locate Zenodo concept record"))
 
-    contents <- content(got)    
+    contents <- content(got)
+    hits=getElement(contents, name = "hits")
+    hits=getElement(hits, name = "hits")
 
-    metadata <- lapply(FUN = getElement, 
-                       X = contents, 
+    metadata <- lapply(FUN = getElement,
+                       X = hits,
                        name = "metadata")
-    versions <- sapply(FUN = getElement, 
-                       X = metadata, 
+    versions <- sapply(FUN = getElement,
+                       X = metadata,
                        name = "version")
-    pub_date <- sapply(FUN = getElement, 
-                       X = metadata, 
+    pub_date <- sapply(FUN = getElement,
+                       X = metadata,
                        name = "publication_date")
 
     selected <- ifelse(version == "latest",
@@ -75,17 +72,17 @@ download_observations <- function(path        = get_default_data_path(),
     if (length(selected) == 0){
 
       stop(paste0("Failed to locate version `", version, "`"))
-   
+
     }
-    
-    zipball_url <- contents[[selected]]$files[[1]]$links$download     
-    version <- ifelse(version == "latest", 
+
+    zipball_url <- hits[[selected]]$files[[1]]$links$self
+    version <- ifelse(version == "latest",
                       metadata[[selected]]$version, version)
 
-  } else {
+  } else if (source == "github") {
 
-    base_url <- "https://api.github.com/repos/weecology/PortalData/releases/" 
-    url <- ifelse(version == "latest", 
+    base_url <- "https://api.github.com/repos/weecology/PortalData/releases/"
+    url <- ifelse(version == "latest",
                   paste0(base_url, "latest"),
                   paste0(base_url, "tags/", version))
 
@@ -93,27 +90,34 @@ download_observations <- function(path        = get_default_data_path(),
 
     stop_for_status(got, task = paste0("locate version `", version, "`"))
 
-    zipball_url <- content(got)$zipball_url      
- 
+    zipball_url <- content(got)$zipball_url
+
     version <- ifelse(version == "latest", content(got)$name, version)
+
+  } else {
+
+    stop("`source` must be either 'zenodo' or 'github'")
+
   }
-  
+
 
   temp <- file.path(tempdir(), "PortalData.zip")
   final <- file.path(path, "PortalData")
   version_file <- file.path(final, "version.txt")
 
-  if (!overwrite & file.exists(version_file)) {
+  if (!force & file.exists(version_file)) {
 
-    existing_version <- scan(file  = version_file, 
-                             what  = character(), 
+    existing_version <- scan(file  = version_file,
+                             what  = character(),
                              quiet = TRUE)
-  
+
 
     if (existing_version == version) {
 
-      if (!quiet) {
-        message("Existing local version (", existing_version, ") is up-to-date with remote version (", version, ") requested and `overwrite` is FALSE, download is skipped")
+      # Avoid showing message in test (except if latest version is requested)
+      # use rlang::local_interactive() to simulate this message in non-interactive session.
+      if (!quiet && (rlang::is_interactive() || latest_requested)) {
+    	message("Existing local version is up-to-date with remote version (", version, ") requested and `force` is FALSE, download is skipped")
       }
 
       return(invisible())
@@ -121,25 +125,41 @@ download_observations <- function(path        = get_default_data_path(),
     }
 
   }
-
-  if (!quiet) {
+  # Avoid showing message in test (inform of version if latest is requested)
+  # use rlang::local_interactive() to simulate this message in non-interactive session.
+  if (!quiet && (rlang::is_interactive() || latest_requested)) {
     message("Downloading version `", version, "` of the data...")
   }
 
 
 
-  download.file(zipball_url, temp, quiet = !verbose, mode = "wb")
+  result <- tryCatch(
+              expr  = download.file(url      = zipball_url,
+                                    destfile = temp,
+                                    quiet    = !verbose,
+                                    mode     = "wb"),
+              error = function(x){NA})
+
+  if (is.na(result)) {
+
+    warning("Archive version `", version, "` could not be downloaded")
+    return(invisible( ))
+
+  }
+
+
   if (file.exists(final)) {
 
-    old_files <- list.files(final,
-                            full.names = TRUE,
-                            all.files = TRUE,
-                            recursive = TRUE,
+    old_files <- list.files(path         = final,
+                            full.names   = TRUE,
+                            all.files    = TRUE,
+                            recursive    = TRUE,
                             include.dirs = FALSE)
 
-    file.remove(normalizePath(old_files))
+    file.remove(old_files)
 
-    unlink(final, recursive = TRUE)
+    unlink(x         = final,
+           recursive = TRUE)
 
   }
 
@@ -156,13 +176,15 @@ download_observations <- function(path        = get_default_data_path(),
 }
 
 #' @title Check for latest version of data files
-#' @description Check the latest version against the data that exists on
-#'   the GitHub repo
+#'
+#' @description Check the latest version against the data that exists on the GitHub repo
+#'
 #' @param path Folder in which data will be checked
 #'
 #' @return bool TRUE if there is a newer version of the data online
 #'
 #' @export
+#'
 check_for_newer_data <- function (path = get_default_data_path()) {
 
   tryCatch(
@@ -176,12 +198,10 @@ check_for_newer_data <- function (path = get_default_data_path()) {
   }
 
 
-  url <- "https://api.github.com/repos/weecology/PortalData/releases/latest" 
+  url <- "https://api.github.com/repos/weecology/PortalData/releases/latest"
   got <- tryCatch(GET(url),
                   error = function(e) NULL)
-  if (is.null(got)) {
-    return(FALSE)
-  }
+  return_if_null(x = got, value = FALSE)
 
   stop_for_status(got, task = paste0("locate latest GitHub version"))
 
@@ -230,12 +250,14 @@ check_default_data_path <- function(ENV_VAR = "PORTALR_DATA_PATH",
 {
   if (is.na(get_default_data_path(fallback = NA, ENV_VAR)))
   {
-    MESSAGE_FUN("You don't appear to have a defined location for storing ", DATA_NAME, ".")
-    MESSAGE_FUN(format_todo(" Call ",
-                            format_code('use_default_data_path(\"<path>\")'),
-                            " if you wish to set the default data path."))
-    MESSAGE_FUN(DATA_NAME, " will be downloaded into ",
-                format_code(path.expand("~")), " otherwise.")
+  	msg <- cli::format_message(
+  		c(
+  			"You don't appear to have a defined location for storing {DATA_NAME}.",
+  			"i" = "Call {.code use_default_data_path(\"path\")} if you wish to set the default data path.",
+  			"i" = "{DATA_NAME} will be downloaded into {.path {path.expand('~')}} otherwise."
+  		)
+  	)
+  	MESSAGE_FUN(msg)
     return(FALSE)
   }
   return(TRUE)
@@ -295,14 +317,17 @@ use_default_data_path <- function(path = NULL, ENV_VAR = "PORTALR_DATA_PATH")
 
   # display message and copy new path setting to clipboard
   path_setting_string <- paste0(ENV_VAR, "=", '"', path, '"')
-  message(format_todo("Call ", format_code('usethis::edit_r_environ()'), " to open ",
-               format_value('.Renviron')))
-  message(format_todo("Store your data path with a line like:"))
-  message("  ", format_code(path_setting_string))
+  cli::cli_inform(c(
+    "*" = "Call {.run usethis::edit_r_environ()} to open {.val .Renviron}.",
+    "*" = "Store your data path with a line like:",
+    " " = path_setting_string
+  ))
   if (rlang::is_interactive() && clipr::clipr_available()) {
     clipr::write_clip(path_setting_string)
-    message("  [Copied to clipboard]")
+    cli::cli_inform("  [Copied to clipboard]")
   }
-  message(format_todo("Make sure ", format_value('.Renviron'), " ends with a newline!"))
+  cli::cli_inform(c(
+      "*" = "Make sure {.val .Renviron} ends with a newline!"
+  ))
   return()
 }

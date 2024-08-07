@@ -14,7 +14,7 @@ clean_data <- function(full_data, trapping_table, ...) {
   full_data <- full_data %>%
     dplyr::left_join(trapping_table, ...) %>%
     dplyr::filter(.data$qcflag == 1) %>%
-    dplyr::select(columns_to_keep) %>%
+    dplyr::select(dplyr::all_of(columns_to_keep)) %>%
     unique()
 
   return(full_data)
@@ -47,8 +47,8 @@ filter_plots <- function(data, plots = NULL)
   }
 
   # if no selection then return unaltered data
-  if (is.null(plots))
-    return(data)
+  return_if_null(x = plots, value = data)
+
 
   # otherwise return filtered data
   dplyr::filter(data, .data$plot %in% plots)
@@ -136,5 +136,5 @@ make_crosstab <- function(summary_data,
   summary_data %>%
     tidyr::spread(.data$species, !!variable_name, ...) %>%
     dplyr::ungroup() %>%
-    dplyr::select(vars_to_keep)
+    dplyr::select(tidyselect::all_of(vars_to_keep))
 }

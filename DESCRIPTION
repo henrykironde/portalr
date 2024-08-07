@@ -1,6 +1,6 @@
 Package: portalr
 Title: Create Useful Summaries of the Portal Data
-Version: 0.3.12
+Version: 0.4.2
 Authors@R: 
     c(person(given = c("Glenda", "M."),
              family = "Yenni",
@@ -43,19 +43,18 @@ Authors@R:
              role = "cph"))
 Description: Download and generate summaries for the rodent,
     plant, ant, and weather data from the Portal Project. Portal is a
-    long-term (and ongoing) experimental monitoring site in the Chihuahua
+    long-term (and ongoing) experimental monitoring site in the Chihuahuan
     desert. The raw data files can be found at
     <https://github.com/weecology/portaldata>.
 License: MIT + file LICENSE
 URL: https://weecology.github.io/portalr/,
     https://github.com/weecology/portalr
 BugReports: https://github.com/weecology/portalr/issues
-Depends: 
+Depends:
     R (>= 3.2.3)
 Imports:
-    clipr, 
-    clisymbols,
-    crayon,
+    cli,
+    clipr,
     dplyr,
     forecast,
     httr,
@@ -64,18 +63,17 @@ Imports:
     magrittr,
     rlang,
     tidyr,
-    tidyselect (>= 1.0.0),
+    tidyselect (>= 1.2.1),
     zoo
 Suggests:
-    covr,
     cowplot,
     ggplot2,
     httptest,
     knitr,
-    pkgdown,
     rmarkdown,
-    testthat
-VignetteBuilder: 
+    testthat (>= 3.0.0)
+VignetteBuilder:
     knitr
 Encoding: UTF-8
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.2
+Config/testthat/edition: 3
